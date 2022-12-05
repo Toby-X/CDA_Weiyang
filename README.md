@@ -18,6 +18,8 @@ LASSO无论是对categorical做还是continuous的粉丝数量做，最后得到
 
 本处LASSO已经经过Cross Validation。
 
+对于选定为让MSE最小的lambda 1个SE下的LASSO，对于multinomial的进行回归，可以在变量中剩下4个，为uptime, num_charge, av_coin, av_play，可以后续看看效果
+
 ## 各个变量名的解释
 uptime: 最近更新时间，为日期-2017年的结果(按天数记)，在后续已归一化。
 
