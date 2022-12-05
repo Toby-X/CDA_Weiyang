@@ -17,3 +17,5 @@ PCA效果很差，到最后2个PC才能保证99%的方差，到最后4个PC才�
 LASSO无论是对categorical做还是continuous的粉丝数量做，最后得到MSE最小的$\lambda$ 要求的都没有归零项，因此每一项都要放在glm里面进行分析。
 
 本处LASSO已经经过Cross Validation。
+
+Test

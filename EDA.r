@@ -69,7 +69,7 @@ ggplot()+
   ylab("sdev")
 data.pca$rotation
 ## 解释性非常差，很难解读
-data.pca$sdev/sum(data.pca$sdev)
+data.pca$sdev^2/sum(data.pca$sdev^2)
 
 ## ELASTICNET
 library(glmnet)
