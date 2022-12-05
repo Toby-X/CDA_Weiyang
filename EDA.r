@@ -2,7 +2,6 @@
 library(GGally)
 library(tidyverse)
 
-setwd("E:/Programmes/Python/CDA_Weiyang/")
 data = read.csv("./Datasets/bilibili.csv",header=T)
 colnames(data)[1] = "idx"
 data$gender = factor(data$gender)
