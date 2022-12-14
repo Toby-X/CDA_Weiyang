@@ -72,7 +72,8 @@ data.pca$sdev^2/sum(data.pca$sdev^2)
 
 ## ELASTICNET
 library(glmnet)
-Design = as.matrix(data[,c(3,8:16)])
+data$gender = sapply(data$gender,as.integer)-1
+Design = as.matrix(data[,c(3,5,8:16)])
 
 ## Using Multicategorical glm
 cvfit1 = cv.glmnet(Design,as.integer(data$fans_cat))
