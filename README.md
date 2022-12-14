@@ -14,11 +14,11 @@ PCA效果很差，到最后2个PC才能保证99%的方差，到最后4个PC才�
 
 ### LASSO
 
-LASSO无论是对categorical做还是continuous的粉丝数量做，最后得到MSE最小的$\lambda$ 要求的都没有归零项，因此每一项都要放在glm里面进行分析。
-
 本处LASSO已经经过Cross Validation。
 
-对于选定为让MSE最小的lambda 1个SE下的LASSO，对于multinomial的进行回归，可以在变量中剩下4个，为uptime, num_charge, av_coin, av_play，可以后续看看效果
+使用Multicategory的粉丝数作为因变量，在mse最小的条件下，可以把弹幕(av_danmu)变量删掉；在mse小于1标准差范围内，可以把弹幕(av_danmu)，点赞数(av_like)，评论数(av_comment)三个变量给丢掉。在做分析时可以三种模型(什么都不丢，丢一个，丢三个)都看看结果，根据AIC和Lack of fit的结果来选定最终的模型
+
+使用连续的粉丝数作为因变量，在mse最小的条件下可以丢掉性别(gender)和视频数(num_videos)两个变量；在小于1标准差范围内效果很烂。但是感觉这样解释性不好，但是也可以放进模型里都看看效果如何。
 
 ## 各个变量名的解释
 uptime: 最近更新时间，为日期-2017年的结果(按天数记)，在后续已归一化。
