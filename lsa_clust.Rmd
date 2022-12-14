@@ -1,0 +1,152 @@
+---
+title: "sc"
+author: "Zhou Ziyi 2020012842"
+date: "2022-12-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+file.list <- list.files(path = "data2")
+library(xlsx)
+```
+## 第一步：将爬虫结果整理得到一个初步可以使用的数据集
+```{r}
+level <- c("10","10-50","50-100",">100")
+set.seed(1)
+bili <- data.frame()
+for (name in file.list) {
+  tmpRoad = paste("data2",name,sep = "/")
+  tmpDf <- read.xlsx2(tmpRoad,sheetIndex = 1,header = T)
+  ## 处理:去除第一第五列,去除没有性别信息的数据
+  tmpDf = tmpDf[,-c(1,5)]
+  colnames(tmpDf)[3] <- "gender"
+  colnames(tmpDf)[4] <- "tag"
+  has.sex = tmpDf$gender =="男" | tmpDf$gender =="女"
+  tmpDf = tmpDf[has.sex,]
+  l = nrow(tmpDf)
+  print(l)
+  fansLevel = level[as.numeric(substr(name,1,1))]
+  print(fansLevel)
+  addCol = within(tmpDf,
+                  {
+                    Level = rep(fansLevel,l)
+                  })
+  samples <- sample(l,250)
+  res = addCol[samples,]
+  bili = rbind(bili,res)
+}
+rownames(bili) = NULL
+nrow(bili)
+write.xlsx2(bili,"bilibili2.xlsx")
+```
+
+## 第二步：对tag进行分析
+
+### tdm
+```{r}
+## 生成dictionary
+allTags <- bili$tag
+splitTags <- strsplit(allTags,split =",",fixed = T)
+tags <- do.call(c,splitTags)
+dict <- unique(tags)
+dictSize <- length(dict)
+## 生成term-document matrix
+listTDM <- lapply(splitTags,FUN = function(x){
+  tmp = rep(0,dictSize)
+  names(tmp) = dict
+  index = dict%in%x
+  tmp[index] = 1
+  tmp
+})
+tdm <- do.call(cbind,listTDM)
+tdm <- as.data.frame(tdm)
+colnames(tdm) <- bili$昵称
+```
+
+### lsa
+```{r}
+## latent semantic analysis
+library(dplyr)
+decomp <- svd(tdm)
+decomp$d[1:50]^2 %>% plot()
+## k取7
+embd <- decomp$u[,1:7]
+rownames(embd) <- dict
+## 视觉辅助：不超过0.1的改成0
+assit <- apply(embd,MARGIN = 2,function(x){
+  res = x
+  res[which(abs(res)<0.1)] = 0
+  res
+})
+## 直接输出：超过0.2的输出值和标签
+upType <- apply(embd,MARGIN = 2,function(x){
+  res = x
+  res[which(abs(res)>0.2)]
+})
+upType
+## 1:游戏 日常
+## 2：游戏 但是不做日常的 或许可以总结为电竞
+## 3：综合
+## 4：搞笑 鬼畜
+## 5：明星 影视
+```
+
+### similarity
+```{r}
+cossim = function(x,y){sum(x*y)/sqrt(sum(x*x)*sum(y*y))}
+cossimMat <- apply(embd,MARGIN = 1,function(x){
+  apply(embd,MARGIN = 1,function(xx){
+    cossim(xx,x)
+  })
+})
+
+#pdf("heatmap.pdf",height = 500,width = 500)
+#heatmap(cossimMat)
+#dev.off()
+## 寄了完全看不清
+```
+
+### clust
+
+#### kmeans
+```{r}
+df2 <- scale(decomp$u)
+rownames(df2) <- dict
+k = 7
+set.seed(123)
+kmeansRes <- kmeans(df2,k,nstart = 6*k)
+df3 <- as.data.frame(cbind(df2,cluster = kmeansRes$cluster))
+table(df3$cluster)
+clusterTags <- list()
+for (clusteri in 1:k) {
+  tagsIn <- dict[which(df3$cluster==clusteri)]
+  clusterTags[[clusteri]] = tagsIn
+}
+print(clusterTags)
+```
+
+```{r}
+k = 18
+set.seed(123)
+kmeansRes <- kmeans(df2,k,nstart = 6*k)
+df3 <- as.data.frame(cbind(df2,cluster = kmeansRes$cluster))
+table(df3$cluster)
+clusterTags <- list()
+for (clusteri in 1:k) {
+  tagsIn <- dict[which(df3$cluster==clusteri)]
+  clusterTags[[clusteri]] = tagsIn
+}
+print(clusterTags)
+```
+
+
+
+
+
+
+
+
