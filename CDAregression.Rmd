@@ -1,0 +1,289 @@
+---
+title: "CDAWork"
+author: "逄一哲"
+date: '2022-12-05'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(ggplot2)
+library(GGally)
+library(tidyverse)
+```
+
+
+```{r cars}
+setwd("D:/R_Files/CDA_Weiyang")
+data = read.csv("D:/R_Files/CDA_Weiyang/Datasets/bilibili.csv",header=T)
+colnames(data)[1] = "idx"
+data$gender = factor(data$gender)
+data$fans_cat = factor(data$fans_cat)
+data$id = factor(data$id)
+
+## standardized so that every value is in (0,1)
+column_max = apply(data[,c(3:4,6,8:16)],2,max)
+column_min = apply(data[,c(3:4,6,8:16)],2,min)
+data_std = t((t(data[,c(3:4,6,8:16)])-column_min)/(column_max-column_min))
+data[,c(3:4,6,8:16)] = data_std
+write.csv(data,"./Datasets/std_bilibili.csv")
+
+## Create Scatter Plot Matrix
+data$gender = as.numeric(data$gender)-1
+ggpairs(data[,c(3:6,8:10,13)])#use av_coin av_like作为代表画spm
+corr = cor(data[,c(-1,-2,-5,-7)])
+heatmap(corr,Colv = NA,Rowv=NA,scale = "column")
+data$gender = factor(data$gender)
+
+## boxplot for each categories
+ggplot(data=data)+
+  geom_boxplot(aes(x = gender,y=num_charge,fill=gender))+
+  labs(title = "Number of charges for each gender")+
+  scale_fill_hue(labels = c("male","female"))
+
+ggplot(data=data)+
+  geom_boxplot(aes(x = gender,y=av_like,fill=gender))+
+  labs(title = "Average number of likes for each gender")+
+  scale_fill_hue(labels = c("male","female"))
+
+ggplot(data=data)+
+  geom_boxplot(aes(x = fans_cat,y=av_like,fill=fans_cat))+
+  labs(title = "Average number of likes for different levels of number of fans")+
+  scale_fill_hue(labels = c("Very Few","Few","Many","Great Many"))+
+  labs(fill="Number of Fans")+
+  ylab("average likes")+
+  xlab("different number of fans")
+
+ggplot(data=data)+
+  geom_boxplot(aes(x = fans_cat,y=av_coin,fill=fans_cat))+
+  labs(title = "Average number of coins for different levels of number of fans")+
+  scale_fill_hue(labels = c("Very Few","Few","Many","Great Many"))+
+  labs(fill="Number of Fans")+
+  ylab("average coins")+
+  xlab("different number of fans")
+
+ggplot(data=data)+
+  geom_boxplot(aes(x = fans_cat,y=num_charge,fill=fans_cat))+
+  labs(title = "Number of charges for different levels of number of fans")+
+  scale_fill_hue(labels = c("Very Few","Few","Many","Great Many"))+
+  labs(fill="Number of Fans")+
+  ylab("number of charges")+
+  xlab("different number of fans")
+
+## PCA
+## From below, drop the ifans variable
+data.pca = prcomp(data[,c(3,8:16)])
+ggplot()+
+  geom_point(aes(x=1:length(data.pca$sdev),y=data.pca$sdev))+
+  geom_line(aes(x=1:length(data.pca$sdev),y=data.pca$sdev),lty="longdash")+
+  labs(title="Elbow Plot")+
+  xlab("PCs")+
+  ylab("sdev")
+data.pca$rotation
+## 解释性非常差，很难解读
+data.pca$sdev/sum(data.pca$sdev)
+
+## ELASTICNET
+library(glmnet)
+Design = as.matrix(data[,c(3,8:16)])
+
+## Using Multicategorical glm
+cvfit1 = cv.glmnet(Design,as.integer(data$fans_cat))
+plot(cvfit1)
+s1 = cvfit1$lambda.min
+s2 = cvfit1$lambda.1se
+lasso1.coef = coef(cvfit1$glmnet.fit,s=s1,exact = F)
+lasso1.coef2 = coef(cvfit1$glmnet.fit,s=s2,exact = F)
+lasso1.coef
+lasso1.coef2
+
+## Using Continuous data(number of fans)
+cvfit2 = cv.glmnet(Design,data$num_fans)
+plot(cvfit2)
+s11 = cvfit2$lambda.min
+s21 = cvfit2$lambda.1se
+lasso2.coef1 = coef(cvfit2$glmnet.fit,s=s11,exact = F)
+lasso2.coef2 = coef(cvfit2$glmnet.fit,s=s21,exact = F)
+lasso2.coef1
+lasso2.coef2
+
+## From the result above, seemingly have to use all the variables extracted
+```
+
+## log linear model
+
+```{r log-linear model, echo=FALSE}
+##1、三位列联表loglinearmodel
+setwd("D:/R_Files/CDA_Weiyang")
+data1 = read.csv("D:/R_Files/CDA_Weiyang/Datasets/subdata1.csv",header=T)
+n<-data1$count
+FansLevel<-data1$FansLevel
+gender<-data1$gender
+type<-data1$upType
+bili.llm<-glm(formula=n~FansLevel*gender*type,family=poisson,data=data1)
+summary(bili.llm)
+pchisq(deviance(bili.llm),df.residual(bili.llm),lower.tail = F)
+#看一下p值，是1，似乎说明拟合的还可以
+
+#接下来求残差和拟合值看一看
+fits<-fitted(bili.llm)
+resids<-residuals(bili.llm)
+h<-lm.influence(bili.llm)$hat
+adjresids<-resids/sqrt(1-h)
+round(cbind(bili.llm$n,fits,adjresids),2)
+#这里的误差看起来非常离谱，还是先扔一扔多余的项吧
+drop1(bili.llm) #这里扔掉了三交叉项
+
+bili.llmd1<-glm(formula=n~FansLevel+gender+type+FansLevel*gender+FansLevel*type+gender*type,family=poisson,data=data1)
+summary(bili.llmd1)
+drop1(bili.llmd1)
+
+bili.llmd2<-step(bili.llm)
+#好像扔不掉了。。
+fits1<-fitted(bili.llmd1)
+resids1<-residuals(bili.llmd1)
+h1<-lm.influence(bili.llmd1)$hat
+adjresids1<-resids1/sqrt(1-h1)
+round(cbind(bili.llmd1$n,fits1,adjresids1),2)
+
+#结果似乎也很一般
+
+
+##2、试试多分类累计逻辑回归(因为响应变量粉丝数Y是有序的)
+library(VGAM)
+little<-c(8686,4270,20433,5804,10616,4383)
+middle<-c(925,443,1919,583,1280,541)
+many<-c(146,72,311,87,225,79)
+huge<-c(117,46,234,59,170,44)
+gender<-c(1,0,1,0,1,0)
+type<c("anime","anime","game","game","knowledge","knowledge")
+type1<-c(1,1,0,0,1,1)
+type2<-c(0,0,1,1,1,1)
+cumlogitm<-vglm(cbind(little,middle,many,huge)~gender+type1+type2,family=cumulative(parallel=TRUE))
+summary(cumlogitm)
+#性别不是很显著，扔掉后只剩5项，都是显著的,截距项指数化后是一个OR
+#感觉直观看来游戏区涨粉相对容易？（粉丝数高的up相对多？动画区次之，知识区最少？）
+fitclm<-fitted(cumlogitm)
+
+##试一试这里只有三类分区的列联表检验，似乎没必要？loglinearmodel已经说明在这三个分类里gender的作用是不显著的，
+##但是拟合值和调整后残差还是很大
+GAF<-array(c(8686,4270,925,443,146,72,117,46,     ##anime
+20433,5804,1919,583,311,87,234,59,                ##game
+10616,4383,1280,541,225,79,170,44),               ##knowledge
+dim=c(2,4,3),
+dimnames=list(
+  gender=c("Man","Woman"),
+  fanslevel=c("<10w","10w-50w","50w-100w",">100w"),
+  channel=c("anime","game","knowledge")))
+ mantelhaen.test(GAF,correct=F) #只能用在2x2xk？但能跑出来一个东西...
+  
+dfanime<-array(c(8686,4270,925,443,146,72,117,46),
+dim=c(2,4),
+dimnames=list(gender=c("Man","Woman"),
+  fanslevel=c("<10w","10w-50w","50w-100w",">100w")))
+anime.chisq<-chisq.test(dfanime)
+anime.chisq
+G2anime=with(anime.chisq,2*sum(observed*log(observed/expected)))
+## X-squared = 1.7898, df = 3, p-value = 0.6172 ,G2=1.832407
+dfgame<-array(c(20433,5804,1919,583,311,87,234,59),
+dim=c(2,4),
+dimnames=list(gender=c("Man","Woman"),
+  fanslevel=c("<10w","10w-50w","50w-100w",">100w")))
+game.chisq<-chisq.test(dfgame)
+game.chisq  ## X-squared = 2.6001, df = 3, p-value = 0.4575
+G2game=with(game.chisq,2*sum(observed*log(observed/expected)))
+G2game  #2.596815
+
+dfknowledge<-array(c(10616,4383,1280,541,225,79,170,44),
+dim=c(2,4),
+dimnames=list(gender=c("Man","Woman"),
+  fanslevel=c("<10w","10w-50w","50w-100w",">100w")))
+knowledge.chisq<-chisq.test(dfknowledge)
+knowledge.chisq  #X-squared = 9.4242, df = 3, p-value = 0.02415
+G2knowledge=with(knowledge.chisq,2*sum(observed*log(observed/expected)))
+G2knowledge  # 9.991834
+
+##3、试一试列联表卡方检验
+setwd("D:/R_Files/CDA_Weiyang")
+data2 = read.csv("D:/R_Files/CDA_Weiyang/Datasets/genderandfanlevel.csv",header=T)
+n<-data2$count
+gen<-data2$gender
+fan<-data2$fanlevel
+gaf<-xtabs(n~gen+fan,data=data2)
+gaf.chisq=chisq.test(gaf)
+G2=with(gaf.chisq,2*sum(observed*log(observed/expected)))
+G2  #  G2=77.10952  #拒绝两者独立的假设
+ #感觉有辛普森悖论但是加上分区的三维列联表独立性检验不太会做
+```
+##Call:
+glm(formula = n ~ FansLevel * gender * type, family = poisson, 
+    data = data1)
+
+Deviance Residuals: 
+     Min        1Q    Median        3Q       Max  
+-12.1519   -2.0898    0.3813    3.7760   21.1865  
+
+Coefficients:
+                               Estimate Std. Error z value Pr(>|z|)    
+(Intercept)                     8.34225    0.01531 544.744  < 2e-16 ***
+FansLevel                      -2.02958    0.03496 -58.056  < 2e-16 ***
+gender                          0.70714    0.01871  37.799  < 2e-16 ***
+typegame                        0.30812    0.02018  15.272  < 2e-16 ***
+typeknowledge                   0.03088    0.02148   1.437   0.1506    
+FansLevel:gender                0.04997    0.04224   1.183   0.2369    
+FansLevel:typegame             -0.04307    0.04663  -0.924   0.3557    
+FansLevel:typeknowledge         0.08182    0.04775   1.714   0.0866 .  
+gender:typegame                 0.54819    0.02391  22.927  < 2e-16 ***
+gender:typeknowledge            0.16754    0.02590   6.468 9.96e-11 ***
+FansLevel:gender:typegame      -0.05830    0.05488  -1.062   0.2881    
+FansLevel:gender:typeknowledge  0.03886    0.05684   0.684   0.4942    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+(Dispersion parameter for poisson family taken to be 1)
+
+    Null deviance: 136270.9  on 23  degrees of freedom
+Residual deviance:   1468.4  on 12  degrees of freedom
+AIC: 1686.8
+
+
+
+
+
+
+## cumulative logit model
+Coefficients: 
+               Estimate Std. Error z value Pr(>|z|)    
+(Intercept):1  2.090765   0.030230  69.162  < 2e-16 ***
+(Intercept):2  3.712515   0.037501  98.997  < 2e-16 ***
+(Intercept):3  4.592028   0.047646  96.379  < 2e-16 ***
+gender         0.007052   0.028168   0.250    0.802    
+type          -0.083692   0.017338  -4.827 1.39e-06 ***
+
+
+Names of linear predictors: logitlink(P[Y<=1]), logitlink(P[Y<=2]), logitlink(P[Y<=3])
+
+Residual deviance: 63.445 on 13 degrees of freedom
+
+Log-likelihood: -96.1866 on 13 degrees of freedom
+
+Number of Fisher scoring iterations: 3 
+
+Warning: Hauck-Donner effect detected in the following estimate(s):
+'(Intercept):3'
+
+
+Exponentiated coefficients:
+   gender      type 
+1.0070768 0.9197145 
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
