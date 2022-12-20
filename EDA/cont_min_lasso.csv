@@ -1,0 +1,13 @@
+"","s1"
+"(Intercept)",-0.03
+"uptime",0.05
+"gender",0
+"num_videos",0
+"num_charge",0.34
+"av_coin",-0.3
+"av_danmu",0.09
+"av_star",-0.11
+"av_like",0.66
+"av_play",0.2
+"av_comment",-0.06
+"av_share",-0.16
