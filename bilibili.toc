@@ -9,5 +9,6 @@
 \contentsline {subsection}{\numberline {4.2}建立模型}{8}{}%
 \contentsline {subsection}{\numberline {4.3}模型解释}{8}{}%
 \contentsline {subsection}{\numberline {4.4}数据可视化}{9}{}%
-\contentsline {section}{\numberline {5}研究缺陷与改进}{9}{}%
-\contentsline {subsection}{\numberline {5.1}累积逻辑回归模型:“平行”或“非平行”}{9}{}%
+\contentsline {subsection}{\numberline {4.5}模型改进}{9}{}%
+\contentsline {section}{\numberline {5}研究结论}{11}{}%
+\contentsline {section}{\numberline {6}研究缺陷与改进}{11}{}%

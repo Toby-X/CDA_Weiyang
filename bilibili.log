@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2021/W32TeX) (preloaded format=xelatex 2021.4.17)  26 DEC 2022 10:59
+This is XeTeX, Version 3.141592653-2.6-0.999993 (TeX Live 2021/W32TeX) (preloaded format=xelatex 2021.4.17)  26 DEC 2022 17:13
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -669,14 +669,24 @@ File: MLR/Figure_propotional.png Graphic file (type bmp)
 <MLR/Figure_propotional.png>
 File: MLR/Figure_cumulative.png Graphic file (type bmp)
 <MLR/Figure_cumulative.png>
- [9] [10] (./bilibili.aux) ) 
+ [9]
+File: MLR/AnovaMul1.png Graphic file (type bmp)
+<MLR/AnovaMul1.png>
+File: MLR/AnovaMul2.png Graphic file (type bmp)
+<MLR/AnovaMul2.png>
+
+Overfull \hbox (78.90108pt too wide) in paragraph at lines 369--385
+ [][] 
+ []
+
+[10] [11] (./bilibili.aux) ) 
 Here is how much of TeX's memory you used:
- 11726 strings out of 476919
- 280770 string characters out of 5819152
+ 11716 strings out of 476919
+ 279285 string characters out of 5819152
  634357 words of memory out of 5000000
- 31482 multiletter control sequences out of 15000+600000
+ 31470 multiletter control sequences out of 15000+600000
  416781 words of font info for 106 fonts, out of 8000000 for 9000
  1348 hyphenation exceptions out of 8191
- 101i,12n,104p,365b,438s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 101i,13n,104p,365b,438s stack positions out of 5000i,500n,10000p,200000b,80000s
 
-Output written on bilibili.pdf (10 pages).
+Output written on bilibili.pdf (11 pages).
