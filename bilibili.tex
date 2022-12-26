@@ -13,14 +13,25 @@
 \usepackage{titlesec}
 \usepackage{bm}
 \usepackage{caption}
+\usepackage{booktabs}
+\usepackage{ulem}
+\usepackage{float}
+% 调节页边距
+\geometry{a4paper,left=3cm,right=3cm,top=3cm,bottom=3cm}
+\renewcommand{\abstractname}{\large 摘要\\}
 \title{UP主粉丝数的影响因素分析}
 \author{CDA小组}
 \date{}
 \begin{document}
 \maketitle
+%------------------------------------摘要------------------------------------
 \begin{abstract}
     这里是摘要
 \end{abstract}
+%------------------------------------目录------------------------------------
+\tableofcontents
+%------------------------------------正文------------------------------------
+\newpage
 \section{背景介绍}
 Bilibili视频网站(下文简称B站)在近年愈发受到年轻人的欢迎，数量庞大的UP主群体为B站的视频生态的多样性做出了
 非常大的贡献。在庞大的UP主群体之下，UP主的粉丝数也有显著的差异。本研究旨在通过研究各种影响因素与UP主的粉丝
@@ -162,4 +173,170 @@ Bilibili视频网站(下文简称B站)在近年愈发受到年轻人的欢迎，
 \indent 由上表可见，使用LASSO多类别逻辑回归和线性回归得到的系数有较为明显的区别，因此说明经过将粉丝量分类，得到了
 不同的回归结果，有不同的解释效应。因此，在进行多分类逻辑回归会得到直接线性回归不同的结果。由于两个1个标准差内的结果
 都省略了过多的变量，可能造成解释能力不足，因此在进行多分类逻辑回归时，考虑舍弃投币数和弹幕数两个变量。
+
+
+\section{多分类逻辑回归分析}
+
+为了分析性别以及点赞数、充电数这些连续型变量与up主粉丝数分区的关系，我们采用多分类
+逻辑回归模型进行建模分析。
+
+\subsection{变量选取}
+
+根据前面部分可知，我们按照“<10万”，“10万~50万”，“50万~100万”，“>100万”的标准将up
+主按照粉丝数分成了4类，我们将这4个up主量级分别记为小up主，中up主，大up主和超级up主，
+得到响应变量如下：
+\begin{table}[H]
+    \centering
+    \begin{tabular}{ccc}
+        \toprule
+         响应变量 & 变量类型 & 变量含义  \\
+        \midrule
+         fans\_cat & Multicategory & 粉丝数的分类，small, middle, big, super big四类 \\
+        \bottomrule
+    \end{tabular}
+    \caption{多分类逻辑回归响应变量}
+\end{table}
+
+对于解释变量，我们一共有1个二分类的性别变量和9个归一化后的连续型变量，各个
+变量的含义如下标所示，根据LASSO部分的分析，我们可以去掉av\_coin和av\_danmu两个变量，
+选择余下8个解释变量作为建模最初的8个变量。
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{ccc}
+        \toprule
+          解释变量 & 变量类型 & 变量含义  \\
+        \midrule
+          gender & binary & 性别, 1代表女性, 0代表男性 \\
+          num\_videos & continuous & 视频数的多少, 单位为个\\
+          num\_charge & continuous & 充电数的多少, 单位为个\\
+          av\_star & continuous & 最近8个视频的平均收藏量, 单位为个\\
+          av\_like & continuous & 最近8个视频的平均点赞数, 单位为个\\
+          av\_play & continuous & 最近8个视频的平均播放数, 单位为次\\
+          av\_comment & continuous & 最近8个视频的平均评论数, 单位为个\\
+          av\_share & continuous & 最近8个视频的平均分享数, 单位为个\\
+          \sout{av\_coin} & continuous & 最近8个视频的平均投币量, 单位为个\\
+          \sout{av\_danmu} & continuous & 最近8个视频的平均弹幕数量, 单位为个\\
+        \bottomrule
+     \end{tabular}
+    \caption{多分类逻辑回归解释变量}
+\end{table}
+
+为初步地观察解释变量与up主粉丝数分类的关系，我们在四个分类中各随机抽取75个up主，绘
+制出这300个up主的并行坐标图如下图所示，图中每一条线就是一个up主在各解释变量的坐标，up主的粉
+丝数分类由线的颜色和线型表示。从图中我们可以看出超级up主的充电数，近期视频的充电数、
+平均点赞数、播放量和评论数都趋向于最大，而有一些小up主的近期平均收藏量在抽取的up主
+中可以达到最大。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{MLR/Figure_parcoord.png}
+    \caption{并行坐标图}
+\end{figure}
+
+\subsection{建立模型}
+
+由于响应变量Y是ordinal的,记响应变量fans\_cat为Y,四个粉丝量级与Y的对应关系为：
+small(Y=1)<middle(Y=2)<big(Y=3)<super big(Y=4)，我们对各水平的累积概率的logit
+采用相同的斜率，即采用“平行”的累积逻辑回归模型，模型如下:
+\begin{equation}
+    \operatorname{logit}(P(Y\le j))=\alpha_j+\beta_1x_1+\cdots+\beta_px_p,\ j=1,2,3
+\end{equation}
+
+
+将响应变量和8个解释变量放入R中得到最初模型，其Anova如下图所示，可以看到性别、视频数量和近期视频平均评论数
+这3个解释变量对应的系数均不显著。
+\begin{figure}[H]
+    \centering
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{MLR/Anova1.png}
+        \caption{Anova of first model}
+    \end{minipage}
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{MLR/Anova2.png}
+        \caption{Anova of final model}
+    \end{minipage}
+\end{figure}
+
+
+采用Backward Elimination的变量选取方法，并以AIC为准则，可以依次去除近期评论数,
+视频数,性别这3个解释变量，将剩余5个解释变量拟合得到最终模型，从图12可以看到
+最终模型中5个解释变量均显著。
+
+\subsection{模型解释}
+
+利用R中的vglm函数得到最终的估计模型如下:
+\begin{equation*}
+    \operatorname{logit}(\hat{P}(Y\le j))=\hat\alpha_j-29.4num\_charge+16.8av\_star-48.6av\_like-19.4av\_play+15.6av\_share
+\end{equation*}
+
+其中$\hat\alpha_1=-0.2,\hat\alpha_2=1.3,\hat\alpha_3=2.9$
+
+我们注意到估计模型中$\beta_{num\_charge},\ \beta_{av\_like}, \beta_{av\_play}$均小于0，
+说明num\_charge，av\_like，av\_play高的up主更倾向于是量级高的UP主，而
+$\beta_{av\_star},\ \beta_{av\_share}$均大于0，说明av\_star和av\_share
+高的UP主倾向于是量级低的UP主，这似乎与直觉不太相符，但由于这只是近8个视频的指标，所以
+我们可以猜测这些视频可能只是通过“玩梗”等方式在短期获得了较大的关注，或者是新UP主。
+
+
+结合整个建模过程的分析，我们可以得到以下结论:
+
+(1) 首先性别变量不显著，说明UP主粉丝数量级可能与性别关系不大.
+
+(2) 一些高质量视频的正向收益指标(点赞数，充电数)显著，而总视频数并不显著，
+说明相较于视频数量，UP主粉丝数量级与其视频质量的关系更大。说明想成为一名
+大Up主，视频在精不在多.
+
+(3) 从拟合模型的系数上看，充电量、点赞量、播放量高的更倾向于是量级高
+的UP主，而近期视频收藏量，分享量高的更可能是“昙花一现”。
+
+\subsection{数据可视化}
+
+为了便于数据可视化，我们系数最显著的解释变量充电量num\_charge单独拟合累积逻辑
+回归模型得到概率估计图如下，左侧是各个粉丝量级的概率分布，右侧是粉丝数量级的累
+积概率。
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{MLR/Figure_propotional.png}
+    \end{minipage}
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{MLR/Figure_cumulative.png}
+        
+    \end{minipage}
+    \caption{以充电量为解释变量的累积逻辑回归模型概率分布图和累积概率图}
+\end{figure}
+
+
+从左图中我们可以看出充电量在超级大UP主和非超级UP主之间分布非常不均匀，归一化后
+的充电量约为0.23以上时，UP主是超级UP主的概率就为1了；从右图可以看出并且随着充
+电量的增加，小，中，大量级对应的累积概率都递减，说明充电量稍微大一些，就很可能
+是超级UP主了，换言之，归一化后0.23充电量以上的UP主中基本都是超级UP主，这也反映
+了一种超级UP主和非超级UP主之间的“贫富差距”大的两极分化现象。
+
+事实上，我们本身抽取UP采用回溯性研究，每个量级的UP主都抽取了250位，但实际上100万
+粉以上的超级UP主的数量相较于100万粉以下的小中大UP主的数量是少得可怜的(列联表部分
+给出数据)，但在抽取数据中充电量23\%值最大值以上都是超级UP主，而充电量本身就是UP主
+获得收益的一个主要渠道之一，可见少数的头部UP主获得远多于非头部UP主的收益，这体现了
+B站UP主的一种金字塔效应。
+
+\section{研究缺陷与改进}
+
+\subsection{累积逻辑回归模型:“平行”或“非平行”}
+
+在多分类逻辑回归分析部分，我们使用了“平行”的累积回归模型，对于最初的8解释变量
+模型，AIC=2273.2；对于最后的5解释变量模型，AIC=2269.1。我们发现最终得到的模型
+的AIC依旧在2000以上，说明模型并不是很理想。我们知道，在使用“平行”的累积回归模型
+时，我们假定了各解释变量对响应变量各水平的累积变量的影响是一致的，这个假设是否
+太强了，导致模型拟合不佳？我们因此尝试了“非平行”的累积逻辑回归模型，当解释变量
+为8个时，“非平行”逻辑回归模型的$3\times(8+1)=27$的参数均显著，但是注意到“非平行”
+模型的Log-likelihood为NA，经过查阅资料和分析发现，在“非平行”模型情况下出现了累积
+概率“交叉”的情况，此时各粉丝量水平概率估计值出现负值，因此导致模型失效，因此“非平
+行”模型在本数据中不适用。
+
 \end{document}
