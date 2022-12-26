@@ -306,8 +306,7 @@ $\beta_{av\_star},\ \beta_{av\_share}$均大于0，说明av\_star和av\_share
     \end{minipage}
     \begin{minipage}[t]{0.48\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{MLR/Figure_cumulative.png}
-        
+        \includegraphics[width=\textwidth]{MLR/Figure_cumulative.png}    
     \end{minipage}
     \caption{以充电量为解释变量的累积逻辑回归模型概率分布图和累积概率图}
 \end{figure}
@@ -325,9 +324,7 @@ $\beta_{av\_star},\ \beta_{av\_share}$均大于0，说明av\_star和av\_share
 获得收益的一个主要渠道之一，可见少数的头部UP主获得远多于非头部UP主的收益，这体现了
 B站UP主的一种金字塔效应。
 
-\section{研究缺陷与改进}
-
-\subsection{累积逻辑回归模型:“平行”或“非平行”}
+\subsection{模型改进}
 
 在多分类逻辑回归分析部分，我们使用了“平行”的累积回归模型，对于最初的8解释变量
 模型，AIC=2273.2；对于最后的5解释变量模型，AIC=2269.1。我们发现最终得到的模型
@@ -338,5 +335,94 @@ B站UP主的一种金字塔效应。
 模型的Log-likelihood为NA，经过查阅资料和分析发现，在“非平行”模型情况下出现了累积
 概率“交叉”的情况，此时各粉丝量水平概率估计值出现负值，因此导致模型失效，因此“非平
 行”模型在本数据中不适用。
+
+我们可以采取多项累积回归模型作为“非平行”累积回归模型的一种替代，看看是否复杂一
+些的模型有更好的效果，模型如下：
+\begin{equation}
+\begin{aligned}
+    \log(\pi_j/\pi_{small})=\alpha_j+\beta_{j1}x_1+\cdots+\beta_{jp}x_p, j=middle,big,super\ big\\
+\end{aligned}  
+\end{equation}
+
+经过Anova分析(下图左)发现模型的视频数变量不显著，建立去除后视频数的模型，进行卡方检验，
+p-value=0.44，说明可以保留简便的模型，即去除视频数的模型，我们由此得到一个7
+解释变量的模型，得到的Anova表(下图右)中所有变量均显著。
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{MLR/AnovaMul1.png}
+        \caption{Anova of first model}
+    \end{minipage}
+    \begin{minipage}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{MLR/AnovaMul2.png}
+        \caption{Anova of final model}
+    \end{minipage}
+\end{figure}
+
+得到的多项逻辑回归模型估计系数如下：
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{ccccccccc}
+        \toprule
+          & Intercept & gender & num\_charge & av\_star
+          & av\_like & av\_play & av\_comment & av\_share\\
+        \midrule
+          $\log(\frac{\hat\pi_{middle}}{\hat\pi_{small}})$ 
+          & -0.7 & -0.5 & 58 & -12
+          & 84 & 8.0 & -5.1 & -22\\
+          $\log(\frac{\hat\pi_{big}}{\hat\pi_{small}})$
+          & -1.3 & 0.01 & 61 & -27
+          & 121 & 18 & 13 & -42\\
+          $\log(\frac{\hat\pi_{super big}}{\hat\pi_{small}})$
+          & -2.7 & -0.1 & 81 & -28
+          & 129 & 39 & 1.5 & -46\\
+        \bottomrule
+     \end{tabular}
+    \caption{多分类逻辑回归解释变量}
+\end{table}
+
+从上表中我们可以得到分析如下：
+
+(1) 由于解释变量是归一化的，系数的绝对值可以一定程度反映解释变量对
+响应变量不同分类之间odds的影响，在3个水平下，性别和近期平均评论数
+的系数绝对值均较小，说明它们对响应变量影响较小，这与累积逻辑回归模
+型部分的结果是一致的。
+
+(2) 充电数和近期平均点赞数的系数在3个level下为正且较大，说明随着充电
+数和近期平均点赞数的增大，UP主位于中、大、超级UP主相较于小UP主的odds
+均增大，并且这种增大的效应比较显著。同时充电数和近期平均点赞数的系数
+满足super big>big>middle，说明这种odds的增大效应随着UP主量级的增大
+而增大。
+
+(3) 近期平均收藏量，近期平均分享量的系数为负，随着近期平均收藏量，近
+期平均分享量的增大，UP主位于中、大、超级UP主相较于小UP主的odds均减小，
+这也与直觉不太相符，我们在累积逻辑回归部分已试图分析过其原因。
+
+最终得到的多项逻辑回归的AIC=2208.4，略优于“平行”的逻辑回归模型，但也
+并不太理想。并且从可解释性上看，似乎引入这种更为复杂的模型并没有给我们
+带来更多的可解释性，因此综合各方面看，我们认为采用“平行”逻辑回归模型来
+刻画UP主粉丝数的分类与各视频指标的关系是最优的。
+
+\section{研究结论}
+
+经过实际情况与以上的数据分析，我们可以总结出三点成为B站头部up主的秘诀。
+
+(1)首先是要尝试自己擅长的领域，因为想要成为一名顶尖up主更多取决于视频
+质量的高低而非视频数量的多少，而在自己擅长的领域更容易做出高质量的视频。
+
+(2)如果不知道成为哪个区的up主更容易收获粉丝，我们建议你可以从游戏区开
+始，因为游戏区的投递视频门槛相对较低，游戏选择合适的话更容易吸引对应
+玩家群体观看。
+
+(3)要保证视频质量持久稳定而非“昙花一现”，这样才能收获长期支持的真爱
+粉，足够多的真爱粉使视频保持长期持久的关注度，这将是成为头部up主的基
+础。
+
+\section{研究缺陷与改进}
+
 
 \end{document}
