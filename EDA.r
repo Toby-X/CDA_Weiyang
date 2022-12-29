@@ -66,7 +66,7 @@ ggplot()+
   labs(title="Elbow Plot")+
   xlab("PCs")+
   ylab("sdev")
-data.pca$rotation
+write.csv(round(data.pca$rotation,2),"./EDA/rotation.csv")
 ## 解释性非常差，很难解读
 data.pca$sdev^2/sum(data.pca$sdev^2)
 
@@ -76,14 +76,14 @@ data$gender = sapply(data$gender,as.integer)-1
 Design = as.matrix(data[,c(3,5,8:16)])
 
 ## Using Multicategorical glm
-cvfit1 = cv.glmnet(Design,as.integer(data$fans_cat))
+cvfit1 = cv.glmnet(Design,as.integer(data$fans_cat),family="multinomial")
 plot(cvfit1)
 s1 = cvfit1$lambda.min
 s2 = cvfit1$lambda.1se
 lasso1.coef = coef(cvfit1$glmnet.fit,s=s1,exact = F)
 lasso1.coef2 = coef(cvfit1$glmnet.fit,s=s2,exact = F)
-lasso1.coef
-lasso1.coef2
+write.csv(round(as.matrix(lasso1.coef$'1'),2),"./EDA/multi_min_lasso.csv")
+write.csv(round(as.matrix(lasso1.coef2$'1'),2),"./EDA/multi_1se_lasso.csv")
 
 ## Using Continuous data(number of fans)
 cvfit2 = cv.glmnet(Design,data$num_fans)
@@ -92,7 +92,7 @@ s11 = cvfit2$lambda.min
 s21 = cvfit2$lambda.1se
 lasso2.coef1 = coef(cvfit2$glmnet.fit,s=s11,exact = F)
 lasso2.coef2 = coef(cvfit2$glmnet.fit,s=s21,exact = F)
-lasso2.coef1
-lasso2.coef2
+write.csv(round(as.matrix(lasso2.coef1),2),"./EDA/cont_min_lasso.csv")
+write.csv(round(as.matrix(lasso2.coef2),2),"./EDA/cont_1se_lasso.csv")
 
 ## From the result above, seemingly have to use all the variables extracted
