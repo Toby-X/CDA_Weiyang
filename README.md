@@ -1,25 +1,16 @@
 # CDA Project
 
-R和Python code直接放在主文件夹下即可。
+在repo中，
 
-Datasets里面储存处理后的数据，初步处理过的数据储存在了bilibili.csv文件中。
+lsa_clust.Rmd为进行爬虫部分的代码；
 
-EDA文件夹用来储存EDA放的图片。此后的分析使用bilibili_std即经归一化处理后的数据进行分析
+DataCleaning.ipynb为进行数据清洗部分的代码；
 
-## EDA
+EDA.r为进行探索性数据分析部分的代码文件；
 
-### PCA
+ContingencyTables.r为进行列联表分析部分的代码；
 
-PCA效果很差，到最后2个PC才能保证99%的方差，到最后4个PC才能保证95%的方差，且通过看系数矩阵无明显的可解释性，后期分析会非常困难。
-
-### LASSO
-
-本处LASSO已经经过Cross Validation。
-
-使用Multicategory的粉丝数作为因变量，在mse最小的条件下，可以把弹幕(av_danmu)和投币数(av_coin)变量删掉；在mse小于1标准差范围内，只保留四个
-变量。在做分析时可以两种模型(什么都不丢，丢两个)都看看结果，根据AIC和Lack of fit的结果来选定最终的模型，1se的那个结果我感觉变量太少了不太能用。
-
-使用连续的粉丝数作为因变量，在mse最小的条件下可以丢掉性别(gender)和视频数(num_videos)两个变量；在小于1标准差范围内效果很烂。但是感觉这样解释性不好，但是也可以放进模型里都看看效果如何。
+CDAregression.Rmd为进行逻辑回归分析部分的代码。
 
 ## 各个变量名的解释
 uptime: 最近更新时间，为日期-2017年的结果(按天数记)，在后续已归一化。
