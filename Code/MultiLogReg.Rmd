@@ -1,0 +1,496 @@
+---
+title: "Multinomial Logistic Regression"
+author: "祝尔康 2020012820"
+date: "2022/12/20"
+documentclass: ctexart
+geometry: margin = 2cm
+output:
+  rticles::ctex: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(prompt = T, comment = '',collapse = T,message = F,warning = F,fig.align ='center', tidy = T)
+```
+
+```{r}
+library(MASS)
+library(dplyr)
+library(tidyverse) 
+library(caret)
+library(nnet) # 另一个计算多项逻辑回归的库
+library(car)
+library(VGAM)
+```
+
+## 读取数据
+
+```{r}
+dat_std <- read.csv("std_bilibili.csv",header = T)[,6:17]
+var_del_multiReg <- c("av_coin","av_danmu","num_fans") #去掉弹幕和投币数
+dat_for_multiReg <- dplyr::select(dat_std,-var_del_multiReg)
+dat_for_multiReg <- dat_for_multiReg[,c(1,3:9,2)]
+dat_for_multiReg$fans_cat <-ifelse(test = dat_for_multiReg$fans_cat==0, yes = "small", 
+                no = ifelse(test = dat_for_multiReg$fans_cat==1, yes = "middle", 
+                  no = ifelse(test = dat_for_multiReg$fans_cat==2, yes = "big",no = "super big")))
+dat_for_multiReg$fans_cat <- factor(dat_for_multiReg$fans_cat, levels = c("small","middle","big","super big"))
+dat_for_multiReg$fans_cat <- relevel(dat_for_multiReg$fans_cat, ref = "small")
+table(dat_for_multiReg$fans_cat)
+head(dat_for_multiReg,3)
+tail(dat_for_multiReg,3)
+summary(dat_for_multiReg[,2:8])
+```
+
+响应变量：
+
+(1)Multicategory *表示lasso下可丢变量
+
+fans_cat: fans category，粉丝数的分类，0为很少，1为较少，2为较多，3为很多，记为小up主，中up主，大up主，超级up主，notated by[small,middle,big,super big] 
+
+(2)continuous **表示lasso下可丢变量
+
+num_fans: number of fans，粉丝数，单位为个
+
+解释变量池：
+
+(1)分类型变量
+
+** gender: 性别，1为女性，0为男性
+
+(2)连续型变量(将解释变量重新缩放到0和1之间，有时有助于参数估计的收敛。)
+
+** num_videos: number of videos，视频数的多少，单位为个
+
+num_charge: number of charges, 充电数的多少，单位为个
+
+* av_coin: average number of 
+coins，最近8个视频的平均投币量，单位为个
+
+* av_danmu: average number of danmu, 最近8个视频的平均弹幕数量，单位为个
+
+av_star: average number of stars, 最近8个视频的平均收藏量，单位为个
+
+av_like: average number of likes, 最近8个视频的平均点赞数，单位为个
+
+av_play: average number of plays, 最近8个视频的平均播放数，单位为次
+
+av_comment: average number of comments, 最近8个视频的平均评论数，单位为个
+
+av_share: average number of shares, 最近8个视频的平均分享数，单位为个
+
+## 并行坐标图
+
+```{r,echo=FALSE}
+# 随机选取200个up主绘制并行坐标图
+set.seed(123)
+vis_sample <- dat_for_multiReg$fans_cat %>% 
+  createDataPartition(p = 0.3, list = F)
+blbl <- dat_for_multiReg[vis_sample,]
+x11(width = 10, height = 6, pointsize = 8)
+ 
+# Reorder variables because gender is binary (may distort plot)
+# Create indicator variable for class
+blbl2<-data.frame(kernel = 1:nrow(blbl), blbl[,2:8],  
+       gender.new = ifelse(test = blbl$gender == 0, yes = 0, no = 1))
+
+# Colors by condition:
+blbl.colors<-ifelse(test = blbl$fans_cat=="small", yes = "black", 
+                no = ifelse(test = blbl$fans_cat=="middle", yes = "red", 
+                  no = ifelse(test = blbl$fans_cat=="big", yes = "blue",no = "green")))
+# Line type by condition:
+blbl.lty<-ifelse(test = blbl$fans_cat=="small", yes = "solid", 
+            no = ifelse(test = blbl$fans_cat=="middle", yes = "longdash", 
+              no = ifelse(test = blbl$fans_cat=="big", yes = "dotdash",no = "twodash")))
+pdf(file = "d:\\RLearning\\HW_CDA\\project\\Figure_parcoord.pdf", width = 12, height = 6, colormodel = "cmyk")   
+parcoord(x = blbl2, col = blbl.colors, lty = blbl.lty)  # Plot
+legend(x = 5.55, y = 1.00, legend = c("small", "middle", "big","super big"), 
+       lty = c("solid", "longdash", "dotdash","twodash"), col=c("black","red","blue","green"), cex=1.0, bty="n")
+dev.off()  
+```
+
+![](Figure_parcoord.pdf){width=80%}
+
+
+## Model 1: 采用Multinomial logistic regression model
+
+```{r}
+# 划分0.8为数据集，0.2为测试集
+# set.seed(1220)
+# training_sample <- dat_for_multiReg$fans_cat %>% 
+#   createDataPartition(p = 0.8, list = F)
+# dat_train <- dat_for_multiReg[training_sample,]
+# dat_test <- dat_for_multiReg[-training_sample,]
+```
+
+
+```{r}
+mod.fit <- multinom(formula = fans_cat~., data = dat_for_multiReg)
+summary(mod.fit)
+```
+
+$$\pi_{small}=\frac{1}{1+\sum_{j=middle,\ big,\ super\ big}\exp\{\alpha_{j}+\beta_{j1}x_1+\cdots+\beta_{jp}x_p\}}$$
+$$\pi_j=\frac{\exp(\alpha_j+\beta_{j1}x_1+\cdots+\beta_{jp}x_p)}{1+\sum_{j=middle,\ big,\ super\ big}\exp\{\alpha_{j}+\beta_{j1}x_1+\cdots+\beta_{jp}x_p\}},\ j=middle,big,super\ big$$
+
+```{r}
+Anova(mod.fit)
+Anova(mod.fit.drop1)
+```
+
+```{r}
+mod.fit.drop1 <- multinom(formula = fans_cat~gender+num_charge+av_star+av_like+av_play+av_comment+av_share, data = dat_for_multiReg)
+summary(mod.fit.drop1)
+```
+
+
+
+```{r}
+# pi.hat <- predict(object=mod.fit, newdata=dat_test, type="probs")
+# predicted_fans_cat <- mod.fit %>% predict(dat_test)
+# accuracy <- mean(predicted_fans_cat == dat_test$fans_cat); accuracy
+```
+
+### Plot num_charge only model 1 
+
+```{r,echo=FALSE}
+x11(width = 7, height = 6, pointsize = 12)
+
+# Estimate model with density only
+mod.fit.nom.charge<-multinom(formula = fans_cat ~ num_charge, data = dat_for_multiReg)
+summary(mod.fit.nom.charge)
+beta.hat<-coefficients(mod.fit.nom.charge)
+
+# Create plotting area first to make sure get the whole region with respect to x-axis
+pdf(file = "d:\\RLearning\\HW_CDA\\project\\Figure_charge_only.pdf", width = 7, height = 6, colormodel = "cmyk")   # Create plot for book
+curve(expr = 1/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) + exp(beta.hat[2,1] + beta.hat[2,2]*x)),
+      ylab = expression(hat(pi)), xlab = "num_charge", ylim = c(0,1),
+      xlim = c(0, 1), col = "black", lty = "solid", lwd = 2, n = 1000, type = "n",
+      panel.first = grid(col = "gray", lty = "dotted"))
+# Plot each pi_j
+curve(expr = 1/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) + exp(beta.hat[2,1] + beta.hat[2,2]*x) 
+                + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "black", lty = "solid", lwd = 2, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "small"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "small"])),
+  ylim = c(0,1))  # small
+
+curve(expr = exp(beta.hat[1,1] + beta.hat[1,2]*x)/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) 
+                + exp(beta.hat[2,1] + beta.hat[2,2]*x) + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "red", lty = "longdash", lwd = 2, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "middle"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "middle"])),
+  ylim = c(0,1))  # middle
+
+curve(expr = exp(beta.hat[2,1] + beta.hat[2,2]*x)/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) 
+                + exp(beta.hat[2,1] + beta.hat[2,2]*x) + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "blue", lty = "dotdash", lwd = 2, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "big"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "big"])),
+  ylim = c(0,1))  # big
+
+curve(expr = exp(beta.hat[3,1] + beta.hat[3,2]*x)/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) 
+                + exp(beta.hat[2,1] + beta.hat[2,2]*x) + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "green", lty = "twodash", lwd = 2, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "super big"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "super big"])),
+  ylim = c(0,1))  # super big
+
+legend(x = 0.6, y = 0.8, legend=c("small", "middle", "big", "super big"), lty=c("solid","longdash","dotdash","twodash"),
+  col=c("black","red","blue","green"), bty="n", lwd = c(2,2,2), seg.len = 4)
+title("pihat for multinommial regression model")
+dev.off()  # Create plot for book
+```
+
+```{r,echo=FALSE}
+# Create plotting area first to make sure get the whole region with respect to x-axis
+pdf(file = "d:\\RLearning\\HW_CDA\\project\\Figure_charge_only2.pdf", width = 7, height = 6, colormodel = "cmyk")  
+curve(expr = 1/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) + exp(beta.hat[2,1] + beta.hat[2,2]*x)),
+      ylab = expression(hat(pi)), xlab = "num_charge", ylim = c(0,1),
+      xlim = c(0, 1), col = "black", lty = "solid", lwd = 2, n = 1000, type = "n",
+      panel.first = grid(col = "gray", lty = "dotted"))
+# Plot each pi_j
+curve(expr = 1/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) + exp(beta.hat[2,1] + beta.hat[2,2]*x) 
+                + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "black", lty = "solid", lwd = 2, n = 1000, add = TRUE,  ylim = c(0,1))  # small
+
+curve(expr = exp(beta.hat[1,1] + beta.hat[1,2]*x)/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) 
+                + exp(beta.hat[2,1] + beta.hat[2,2]*x) + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "red", lty = "longdash", lwd = 2, n = 1000, add = TRUE, ylim = c(0,1))  # middle
+
+curve(expr = exp(beta.hat[2,1] + beta.hat[2,2]*x)/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) 
+                + exp(beta.hat[2,1] + beta.hat[2,2]*x) + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "blue", lty = "dotdash", lwd = 2, n = 1000, add = TRUE, ylim = c(0,1))  # big
+
+curve(expr = exp(beta.hat[3,1] + beta.hat[3,2]*x)/(1 + exp(beta.hat[1,1] + beta.hat[1,2]*x) 
+                + exp(beta.hat[2,1] + beta.hat[2,2]*x) + exp(beta.hat[3,1] + beta.hat[3,2]*x)),
+  col = "green", lty = "twodash", lwd = 2, n = 1000, add = TRUE,ylim = c(0,1)) # super big
+
+legend(x = 0.6, y = 0.8, legend=c("small", "middle", "big", "super big"), lty=c("solid","longdash","dotdash","twodash"),
+  col=c("black","red","blue","green"), bty="n", lwd = c(2,2,2), seg.len = 4)
+title("pihat for multinommial regression model")
+dev.off()  # Create plot for book
+```
+
+![](Figure_charge_only.pdf){width=50%}
+![](Figure_charge_only2.pdf){width=50%}
+
+
+
+
+## Model 2: 采用ordinal response regression models
+
+假定：small($Y=1$)<middle($Y=2$)<big($Y=3$)<super big($Y=4$)
+
+```{r}
+levels(dat_for_multiReg$fans_cat)
+mod.fit.ord <- MASS::polr(formula = fans_cat~., data = dat_for_multiReg, method = "logistic")
+summary(mod.fit.ord)
+Anova(mod.fit.ord)
+```
+
+```{r}
+drop1(mod.fit.ord)
+# 删除av_comment
+mod.fit.ord.drop1 <- MASS::polr(formula = fans_cat~gender+num_videos+num_charge+av_star+av_like+av_play+av_share, data = dat_for_multiReg, method = "logistic")
+drop1(mod.fit.ord.drop1)
+# 删除num_videos
+mod.fit.ord.drop2 <- MASS::polr(formula = fans_cat~gender+num_charge+av_star+av_like+av_play+av_share, data = dat_for_multiReg, method = "logistic")
+drop1(mod.fit.ord.drop2)
+# 删除gender
+mod.fit.ord.drop3 <- MASS::polr(formula = fans_cat~num_charge+av_star+av_like+av_play+av_share, data = dat_for_multiReg, method = "logistic")
+drop1(mod.fit.ord.drop3)
+Anova(mod.fit.ord.drop3)
+```
+
+polr() function estimates the model:
+$$\operatorname{logit}(P(Y \leq j))=\alpha_{j}-\eta_1 x_1-\cdots-\eta_p x_p$$
+The estimated model:
+$$\operatorname{logit}(\hat P(Y \leq j))=\hat\alpha_{j}+0.35gender -0.46num\_vedios-24num\_charge+4.9av\_star-23av\_like-18av\_play+5.1av\_comment+3.2av\_share$$
+$$\hat\alpha_{1}=-0.32,\ \hat\alpha_{1}=0.98,\ \hat\alpha_{3}=-2.47$$
+
+```{r}
+# pi.hat.ord <- predict(object = mod.fit.ord3, type = "probs")
+# predicted_fans_cat_ord <- mod.fit.ord3 %>% predict(dat_test)
+# accuracy.ord <- mean(predicted_fans_cat_ord == dat_test$fans_cat); accuracy.ord
+```
+
+### Plot num_charge only model 2
+
+```{r}
+mod.fit.ord.charge<-polr(formula=fans_cat~num_charge, data = dat_for_multiReg, method = "logistic")
+summary(mod.fit.ord.charge)
+```
+
+```{r,echo=FALSE}
+x11(width = 7, height = 6, pointsize = 12)
+
+# Create plotting area first to make sure get the whole region with respect to x-axis
+lwd.po = 2
+pdf(file = "d:\\RLearning\\HW_CDA\\project\\Figure_propotional.pdf", width = 7, height = 6, colormodel = "cmyk")
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+      ylab = expression(hat(pi)), xlab = "num_charge", ylim = c(0,1),
+      xlim = c(0, 1), col = "black", lty = "solid", lwd = lwd.po, n = 1000, type = "n",
+      panel.first = grid(col = "gray", lty = "dotted"))
+
+# Plot each pi_j for proportional odds mode
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "black", lty = "solid", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "small"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "small"])),
+  ylim = c(0,1))  # small
+
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[2] - mod.fit.ord.charge$coefficients*x) - 
+        plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "red", lty = "longdash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "middle"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "middle"])),
+  ylim = c(0,1))  # middle
+
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[3] - mod.fit.ord.charge$coefficients*x) - 
+        plogis(q = mod.fit.ord.charge$zeta[2] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "blue", lty = "dotdash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "big"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "big"])),
+  ylim = c(0,1))  # big
+
+curve(expr = 1 - plogis(q = mod.fit.ord.charge$zeta[3] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "green", lty = "twodash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "super big"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "super big"])),
+  ylim = c(0,1))  # super big
+
+legend(x = 0.6, y = 0.8, legend=c("small", "middle", "big", "super big"), lty=c("solid","longdash","dotdash","twodash"), col=c("black","red","blue","green"),
+       bty="n", lwd = c(2,2,2,2), seg.len = 4)
+title("pihat for proportional odds model")
+dev.off() 
+```
+
+```{r,echo=FALSE}
+x11(width = 7, height = 6, pointsize = 12)
+
+# Create plotting area first to make sure get the whole region with respect to x-axis
+lwd.po = 2
+pdf(file = "d:\\RLearning\\HW_CDA\\project\\Figure_propotional2.pdf", width = 7, height = 6, colormodel = "cmyk")
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+      ylab = expression(hat(pi)), xlab = "num_charge", ylim = c(0,1),
+      xlim = c(0, 1), col = "black", lty = "solid", lwd = lwd.po, n = 1000, type = "n",
+      panel.first = grid(col = "gray", lty = "dotted"))
+
+# Plot each pi_j for proportional odds model
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "black", lty = "solid", lwd = lwd.po, n = 1000, add = TRUE,
+  ylim = c(0,1))  # small
+
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[2] - mod.fit.ord.charge$coefficients*x) - 
+        plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "red", lty = "longdash", lwd = lwd.po, n = 1000, add = TRUE,
+  ylim = c(0,1))  # middle
+
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[3] - mod.fit.ord.charge$coefficients*x) - 
+        plogis(q = mod.fit.ord.charge$zeta[2] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "blue", lty = "dotdash", lwd = lwd.po, n = 1000, add = TRUE,
+  ylim = c(0,1))  # big
+
+curve(expr = 1 - plogis(q = mod.fit.ord.charge$zeta[3] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "green", lty = "twodash", lwd = lwd.po, n = 1000, add = TRUE,
+  ylim = c(0,1))  # super big
+
+legend(x = 0.6, y = 0.8, legend=c("small", "middle", "big", "super big"), lty=c("solid","longdash","dotdash","twodash"), col=c("black","red","blue","green"), 
+       bty="n", lwd = c(2,2,2,2), seg.len = 4)
+title("pihat for proportional odds model")
+dev.off() 
+```
+
+![](Figure_propotional.pdf){width=50%}
+![](Figure_propotional2.pdf){width=50%}
+
+### 绘制累积概率分布图
+
+```{r,echo=FALSE}
+x11(width = 7, height = 6, pointsize = 12)
+
+# Create plotting area first to make sure get the whole region with respect to x-axis
+lwd.po = 2
+pdf(file = "d:\\RLearning\\HW_CDA\\project\\Figure_cumulative.pdf", width = 7, height = 6, colormodel = "cmyk")
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+      ylab = expression(hat(pi)), xlab = "num_charge", ylim = c(0,1),
+      xlim = c(0, 1), col = "black", lty = "solid", lwd = lwd.po, n = 1000, type = "n",
+      panel.first = grid(col = "gray", lty = "dotted"))
+
+# Plot each pi_j for proportional odds model
+# Plot each pi_j
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[1] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "black", lty = "solid", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(0, 1), ylim = c(0,1))  # small
+
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[2] - mod.fit.ord.charge$coefficients*x),
+  type = "l", col = "red", lty = "longdash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(0, 1), ylim = c(0,1))  # small or middle
+
+curve(expr = plogis(q = mod.fit.ord.charge$zeta[3] - mod.fit.ord.charge$coefficients*x), 
+  type = "l", col = "blue", lty = "dotdash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(0, 1), ylim = c(0,1))  # small or middle or big
+
+legend(x = 0.5, y = 0.8, legend=c("Y less than or equal to 1", "Y less than or equal to 2", 
+                                  "Y less than or equal to 3"), lty=c("solid","longdash","dotdash"),
+  col=c("black","red","blue"), bty="n", lwd = c(2,2,2), seg.len = 4)
+title("cumulative pihat")
+dev.off() 
+```
+
+![](Figure_cumulative.pdf){width=80%}
+
+
+
+## Model 3: 采用Non-proportional odds model
+
+```{r}
+mod.fit.po <- vglm(formula = fans_cat~., data = dat_for_multiReg, family = cumulative(parallel = T))
+summary(mod.fit.po)
+```
+
+```{r}
+mod.fit.npo <- vglm(formula = fans_cat~., family = cumulative(parallel = F), data = dat_for_multiReg)
+summary(mod.fit.npo)
+```
+
+```{r}
+Anova(mod.fit.po)
+
+Anova(mod.fit.npo)
+```
+
+```{r}
+# x <- mod.fit.npo %>% predict(dat_test,type = 'response')
+# predicted_fans_cat_npo <- apply(x, 1, function(t) colnames(x)[which.max(t)])
+# accuracy.npo <- mean(predicted_fans_cat_npo == dat_test$fans_cat); accuracy.npo
+```
+
+
+## 模型比较
+
+### 比较非平行和平行模型
+
+```{r}
+dev.po <- deviance(mod.fit.po)
+dev.npo <- deviance(mod.fit.npo)
+LR.stat <-  dev.po - dev.npo
+df <- df.residual(mod.fit.po)-df.residual(mod.fit.npo)
+p.value <- 1 - pchisq(q = LR.stat, df = df)
+
+data.frame(dev.po,dev.npo,LR.stat, df, p.value)
+```
+
+```{r}
+mod.fit.npo.charge <- vglm(formula = fans_cat~num_charge, family = cumulative(parallel = F), data = dat_for_multiReg)
+summary(mod.fit.npo.charge)
+cf <- coef(mod.fit.npo.charge) 
+```
+
+
+```{r}
+x11(width = 7, height = 6, pointsize = 12)
+
+# Create plotting area first to make sure get the whole region with respect to x-axis
+lwd.po = 2
+pdf(file = "d:\\RLearning\\HW_CDA\\project\\Figure_npo_charge.pdf", width = 7, height = 6, colormodel = "cmyk")
+curve(expr = plogis(q = cf[1] + cf[4]*x),
+      ylab = expression(hat(pi)), xlab = "num_charge", ylim = c(0,1),
+      xlim = c(0, 1), col = "black", lty = "solid", lwd = lwd.po, n = 1000, type = "n",
+      panel.first = grid(col = "gray", lty = "dotted"))
+
+# Plot each pi_j for proportional odds mode
+curve(expr = plogis(q = cf[1] + cf[4]*x),
+  type = "l", col = "black", lty = "solid", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "small"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "small"])),
+  ylim = c(0,1))  # small
+
+curve(expr = plogis(q =cf[2] + cf[5]*x) - plogis(q = cf[1] + cf[4]*x),
+  type = "l", col = "red", lty = "longdash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "middle"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "middle"])),
+  ylim = c(0,1))  # middle
+
+curve(expr =  plogis(q =cf[3] + cf[6]*x) - plogis(q = cf[2] + cf[5]*x),
+  type = "l", col = "blue", lty = "dotdash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "big"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "big"])),
+  ylim = c(0,1))  # big
+
+curve(expr = 1 - plogis(q =cf[3] + cf[6]*x),
+  type = "l", col = "green", lty = "twodash", lwd = lwd.po, n = 1000, add = TRUE,
+  xlim = c(min(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "super big"]),
+           max(dat_for_multiReg$num_charge[dat_for_multiReg$fans_cat == "super big"])),
+  ylim = c(0,1))  # super big
+
+legend(x = 0.6, y = 0.8, legend=c("small", "middle", "big", "super big"), lty=c("solid","longdash","dotdash","twodash"), col=c("black","red","blue","green"),
+       bty="n", lwd = c(2,2,2,2), seg.len = 4)
+title("pihat for proportional odds model")
+dev.off() 
+```
+
+
+
+
+
+
