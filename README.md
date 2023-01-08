@@ -12,6 +12,8 @@ ContingencyTables.r为进行列联表分析部分的代码；
 
 CDAregression.Rmd为进行逻辑回归分析部分的代码。
 
+使用的数据集保存在Datasets文件夹之下。
+
 ## 各个变量名的解释
 uptime: 最近更新时间，为日期-2017年的结果(按天数记)，在后续已归一化。
 
